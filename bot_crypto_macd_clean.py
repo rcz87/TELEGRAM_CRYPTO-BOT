@@ -155,4 +155,8 @@ async def main():
     await application.start()
     await application.run_polling()
 
+import nest_asyncio
+nest_asyncio.apply()
+
 asyncio.get_event_loop().run_until_complete(main())
+
