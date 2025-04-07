@@ -1,4 +1,3 @@
-
 import requests
 import nest_asyncio
 import asyncio
@@ -13,15 +12,19 @@ from telegram.ext import (
     filters,
 )
 
+# Token Telegram
+TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+
+# Untuk perbaiki loop di environment tertentu
 nest_asyncio.apply()
 
-TELEGRAM_TOKEN = "7695838700:AAFoZve12b53RzL8pu_swAnFkjaqXz43zKU"
-
+# List coin
 COIN_LIST = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT",
     "ADA-USDT", "AVAX-USDT", "DOT-USDT", "SHIB-USDT", "LINK-USDT",
 ]
 
+# Ambil data candle
 def get_candles(inst, bar="5m"):
     url = f"https://www.okx.com/api/v5/market/candles?instId={inst}&bar={bar}&limit=100"
     try:
@@ -37,29 +40,24 @@ def get_candles(inst, bar="5m"):
     except:
         return None
 
+# Hitung indikator teknikal
 def calculate_indicators(df):
     df["EMA10"] = df["close"].ewm(span=10, adjust=False).mean()
-    
-    # RSI
     delta = df["close"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
     df["RSI"] = 100 - (100 / (1 + rs))
-
-    # Stochastic RSI
     min_rsi = df["RSI"].rolling(14).min()
     max_rsi = df["RSI"].rolling(14).max()
     df["StochRSI"] = (df["RSI"] - min_rsi) / (max_rsi - min_rsi) * 100
-
-    # MACD
     ema12 = df["close"].ewm(span=12, adjust=False).mean()
     ema26 = df["close"].ewm(span=26, adjust=False).mean()
     df["MACD"] = ema12 - ema26
     df["MACD_signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
-
     return df
 
+# Deteksi support & resistance
 def detect_sr(df):
     recent_lows = df["low"].rolling(5).min().iloc[-10:]
     recent_highs = df["high"].rolling(5).max().iloc[-10:]
@@ -67,6 +65,7 @@ def detect_sr(df):
     resistance = recent_highs.max()
     return support, resistance
 
+# Analisis teknikal
 def analyze(df):
     signals = []
     price = df["close"].iloc[-1]
@@ -105,6 +104,7 @@ def analyze(df):
 
     return signals, price
 
+# Handler pesan
 async def simple_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = update.message.text.strip().upper()
@@ -113,7 +113,7 @@ async def simple_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for word in words:
             if not word.endswith("-USDT"):
-                word = word + "-USDT"
+                word += "-USDT"
             if word in COIN_LIST:
                 pairs.append(word)
             if len(pairs) >= 3:
@@ -143,20 +143,19 @@ async def simple_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
+# Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Halo! Kirim nama coin, contoh: BTC atau ETH")
 
+# Bangun aplikasi
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, simple_check))
 
+# Jalankan bot
 async def main():
     await application.initialize()
     await application.start()
     await application.run_polling()
 
-import nest_asyncio
-nest_asyncio.apply()
-
 asyncio.get_event_loop().run_until_complete(main())
-
